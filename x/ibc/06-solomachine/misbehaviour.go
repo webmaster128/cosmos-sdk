@@ -37,7 +37,7 @@ func CheckMisbehaviourAndUpdateState(
 		return nil, err
 	}
 
-	smClientState.Frozen = true
+	smClientState.FrozenSequence = evidence.Sequence
 	return smClientState, nil
 }
 

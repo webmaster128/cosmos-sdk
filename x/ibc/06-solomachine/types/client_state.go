@@ -23,23 +23,23 @@ type ClientState struct {
 	ID string `json:"id" yaml:"id"`
 
 	// Frozen status of the client
-	Frozen bool `json:"frozen" yaml:"frozen"`
+	FrozenSequence uint64 `json:"frozen_sequence" yaml:"frozen_sequence"`
 
-	// Current consensus state of the client
-	ConsensusState ConsensusState `json:"consensus_state" yaml:"consensus_state"`
+	// Latest sequence of the client
+	LatestSequence uint64 `json:"latest_sequence" yaml:"latest_sequence"`
 }
 
-// InitializeFromMsg creates a solo machine client from a MsgCreateClient
+// InitializeFromMsg creates a solo machine client from a MsgCreateClient.
 func InitializeFromMsg(msg MsgCreateClient) (ClientState, error) {
-	return NewClientState(msg.GetClientID(), msg.ConsensusState), nil
+	return NewClientState(msg.GetClientID(), msg.LatestSequence), nil
 }
 
 // NewClientState creates a new ClientState instance.
-func NewClientState(id string, consensusState ConsensusState) ClientState {
+func NewClientState(id string, latestSequence uint64) ClientState {
 	return ClientState{
 		ID:             id,
 		Frozen:         false,
-		ConsensusState: consensusState,
+		LatestSequence: latestSequence,
 	}
 }
 
@@ -60,12 +60,12 @@ func (cs ClientState) ClientType() clientexported.ClientType {
 
 // GetLatestHeight returns the latest sequence number.
 func (cs ClientState) GetLatestHeight() uint64 {
-	return cs.ConsensusState.Sequence
+	return cs.LatestSequence
 }
 
 // IsFrozen returns true if the client is frozen
 func (cs ClientState) IsFrozen() bool {
-	return cs.Frozen
+	return cs.FrozenSequence != 0
 }
 
 // Validate performs basic validation of the client state fields.
@@ -82,45 +82,32 @@ func (cs ClientState) VerifyClientConsensusState(
 	store sdk.KVStore,
 	cdc *codec.Codec,
 	root commitmentexported.Root,
-	_ uint64,
+	sequence uint64,
 	counterpartyClientIdentifier string,
 	consensusHeight uint64,
 	prefix commitmentexported.Prefix,
 	proof commitmentexported.Proof,
 	consensusState clientexported.ConsensusState,
 ) error {
+	if err := validateVerificationArgs(cs, sequence, proof, consensusState); err != nil {
+		return err
+	}
+
 	clientPrefixedPath := "clients/" + counterpartyClientIdentifier + "/" + host.ConsensusStatePath(consensusHeight)
 	path, err := commitmenttypes.ApplyPrefix(prefix, clientPrefixedPath)
 	if err != nil {
 		return err
 	}
 
-	if cs.IsFrozen() {
-		return clienttypes.ErrClientFrozen
-	}
+	data, err := ConsensusStateSignBytes(cdc, sequence, path, consensusState)
 
-	// cast the proof to a signature proof
-	signatureProof, ok := proof.(commitmenttypes.SignatureProof)
-	if !ok {
-		return sdkerrors.Wrapf(clienttypes.ErrInvalidClientType, "proof type %T is not type SignatureProof", proof)
-	}
-
-	bz, err := cdc.MarshalBinaryBare(consensusState)
-	if err != nil {
-		return err
-	}
-
-	// value = sequence + path + consensus state
-	value := append(
-		combineSequenceAndPath(cs.ConsensusState.Sequence, path),
-		bz...,
-	)
-	if !cs.ConsensusState.PubKey.VerifyBytes(value, signatureProof.Signature) {
+	if err := CheckSignature(consensusState.PubKey, value, signature); err != nil {
 		return sdkerrors.Wrap(clienttypes.ErrFailedClientConsensusStateVerification, "failed to verify proof against current public key, sequence, and consensus state")
 	}
 
-	cs.ConsensusState.Sequence++
-	setClientState(store, cs)
+	clientState.LatestSequence++
+	setClientState(store, clientState)
+	setConsensusState(store, clientState.LatestSequence, consensusState)
 	return nil
 }
 
@@ -141,31 +128,13 @@ func (cs ClientState) VerifyConnectionState(
 		return err
 	}
 
-	if cs.IsFrozen() {
-		return clienttypes.ErrClientFrozen
-	}
-
-	// cast the proof to a signature proof
-	signatureProof, ok := proof.(commitmenttypes.SignatureProof)
-	if !ok {
-		return sdkerrors.Wrapf(clienttypes.ErrInvalidClientType, "proof type %T is not type SignatureProof", proof)
-	}
-
-	connection, ok := connectionEnd.(connectiontypes.ConnectionEnd)
-	if !ok {
-		return sdkerrors.Wrapf(clienttypes.ErrInvalidClientType, "invalid connection type %T", connectionEnd)
-	}
-
-	bz, err := cdc.MarshalBinaryBare(&connection)
+	signature, err := validateVerificationArgs(cs, sequence, consensusState)
 	if err != nil {
 		return err
 	}
 
-	// value = sequence + path + connection end
-	value := append(
-		combineSequenceAndPath(cs.ConsensusState.Sequence, path),
-		bz...,
-	)
+	data := ConnectionStateSignBytes(cs, cdc, connectionEnd, path)
+
 	if !cs.ConsensusState.PubKey.VerifyBytes(value, signatureProof.Signature) {
 		return sdkerrors.Wrap(
 			clienttypes.ErrFailedConnectionStateVerification,
@@ -206,21 +175,6 @@ func (cs ClientState) VerifyChannelState(
 		return sdkerrors.Wrapf(clienttypes.ErrInvalidClientType, "proof type %T is not type SignatureProof", proof)
 	}
 
-	channelEnd, ok := channel.(channeltypes.Channel)
-	if !ok {
-		return sdkerrors.Wrapf(clienttypes.ErrInvalidClientType, "invalid channel type %T", channel)
-	}
-
-	bz, err := cdc.MarshalBinaryBare(&channelEnd)
-	if err != nil {
-		return err
-	}
-
-	// value = sequence + path + channel
-	value := append(
-		combineSequenceAndPath(cs.ConsensusState.Sequence, path),
-		bz...,
-	)
 	if !cs.ConsensusState.PubKey.VerifyBytes(value, signatureProof.Signature) {
 		return sdkerrors.Wrap(
 			clienttypes.ErrFailedChannelStateVerification,
@@ -228,8 +182,9 @@ func (cs ClientState) VerifyChannelState(
 		)
 	}
 
-	cs.ConsensusState.Sequence++
-	setClientState(store, cs)
+	clientState.LatestSequence++
+	setClientState(store, clientState)
+	setConsensusState(store, clientState.LatestSequence, consensusState)
 	return nil
 }
 
@@ -261,11 +216,6 @@ func (cs ClientState) VerifyPacketCommitment(
 		return sdkerrors.Wrapf(clienttypes.ErrInvalidClientType, "proof type %T is not type SignatureProof", proof)
 	}
 
-	// value = sequence + path + commitment bytes
-	value := append(
-		combineSequenceAndPath(cs.ConsensusState.Sequence, path),
-		commitmentBytes...,
-	)
 	if !cs.ConsensusState.PubKey.VerifyBytes(value, signatureProof.Signature) {
 		return sdkerrors.Wrap(
 			clienttypes.ErrFailedPacketCommitmentVerification,
@@ -273,10 +223,10 @@ func (cs ClientState) VerifyPacketCommitment(
 		)
 	}
 
-	cs.ConsensusState.Sequence++
-	setClientState(store, cs)
+	clientState.LatestSequence++
+	setClientState(store, clientState)
+	setConsensusState(store, clientState.LatestSequence, consensusState)
 	return nil
-
 }
 
 // VerifyPacketAcknowledgement verifies a proof of an incoming packet
@@ -307,11 +257,6 @@ func (cs ClientState) VerifyPacketAcknowledgement(
 		return sdkerrors.Wrap(clienttypes.ErrInvalidClientType, "proof type %T is not type SignatureProof")
 	}
 
-	// value = sequence + path + acknowledgement
-	value := append(
-		combineSequenceAndPath(cs.ConsensusState.Sequence, path),
-		acknowledgement...,
-	)
 	if !cs.ConsensusState.PubKey.VerifyBytes(value, signatureProof.Signature) {
 		return sdkerrors.Wrap(
 			clienttypes.ErrFailedPacketAckVerification,
@@ -319,8 +264,9 @@ func (cs ClientState) VerifyPacketAcknowledgement(
 		)
 	}
 
-	cs.ConsensusState.Sequence++
-	setClientState(store, cs)
+	clientState.LatestSequence++
+	setClientState(store, clientState)
+	setConsensusState(store, clientState.LatestSequence, consensusState)
 	return nil
 
 }
@@ -353,9 +299,6 @@ func (cs ClientState) VerifyPacketAcknowledgementAbsence(
 		return sdkerrors.Wrapf(clienttypes.ErrInvalidClientType, "proof type %T is not type SignatureProof", proof)
 	}
 
-	// value = sequence + path
-	value := combineSequenceAndPath(cs.ConsensusState.Sequence, path)
-
 	if !cs.ConsensusState.PubKey.VerifyBytes(value, signatureProof.Signature) {
 		return sdkerrors.Wrap(
 			clienttypes.ErrFailedPacketAckAbsenceVerification,
@@ -363,8 +306,9 @@ func (cs ClientState) VerifyPacketAcknowledgementAbsence(
 		)
 	}
 
-	cs.ConsensusState.Sequence++
-	setClientState(store, cs)
+	clientState.LatestSequence++
+	setClientState(store, clientState)
+	setConsensusState(store, clientState.LatestSequence, consensusState)
 	return nil
 
 }
@@ -373,7 +317,7 @@ func (cs ClientState) VerifyPacketAcknowledgementAbsence(
 // received of the specified channel at the specified port.
 func (cs ClientState) VerifyNextSequenceRecv(
 	store sdk.KVStore,
-	_ uint64,
+	sequence uint64,
 	prefix commitmentexported.Prefix,
 	proof commitmentexported.Proof,
 	portID,
@@ -386,44 +330,73 @@ func (cs ClientState) VerifyNextSequenceRecv(
 		return err
 	}
 
-	if cs.IsFrozen() {
-		return clienttypes.ErrClientFrozen
+	clientState, signature, err := sanitizeVerificationArgs(cs, sequence, proof, consensusState)
+	if err != nil {
+		return err
+	}
+
+	data, err := NextSequenceRecvSignBytes(sequence, path, nextSequenceRecv)
+	if err != nil {
+		return err
+	}
+
+	if err := CheckSignature(consensusState.PubKey, data, signature); err != nil {
+		return sdkerrors.Wrapf(clienttypes.ErrFailedNextSeqRecvVerification, err.Error())
+	}
+
+	clientState.LatestSequence++
+	setClientState(store, clientState)
+	setConsensusState(store, clientState.LatestSequence, consensusState)
+	return nil
+}
+
+func sanitizeVerificationArgsAndGetSignature(
+	cs ClientState,
+	sequence uint64,
+	proof commitmentexported.Proof,
+	consensusState clientexported.ConsensusState,
+) ([]byte, error) {
+	if cs.GetLatestHeight() < sequence {
+		return nil, sdkerrors.Wrapf(
+			ErrInvalidSequence,
+			"client state (%s) sequence < proof height (%d < %d)", cs.ID, cs.GetLatestHeight(), sequence,
+		)
+	}
+
+	if cs.IsFrozen() && cs.FrozenSequence <= sequence {
+		return nil, clienttypes.ErrClientFrozen
+	}
+
+	if proof == nil {
+		return nil, sdkerrors.Wrap(commitmenttypes.ErrInvalidProof, "proof cannot be empty")
 	}
 
 	// cast the proof to a signature proof
 	signatureProof, ok := proof.(commitmenttypes.SignatureProof)
 	if !ok {
-		return sdkerrors.Wrapf(clienttypes.ErrInvalidClientType, "proof type %T is not type SignatureProof", proof)
+		return nil, sdkerrors.Wrapf(clienttypes.ErrInvalidClientType, "invalid proof type %T, expected %T", proof, commitmenttypes.SignatureProof{})
 	}
 
-	// value = sequence + path + nextSequenceRecv
-	value := append(
-		combineSequenceAndPath(cs.ConsensusState.Sequence, path),
-		sdk.Uint64ToBigEndian(nextSequenceRecv)...,
-	)
-
-	if !cs.ConsensusState.PubKey.VerifyBytes(value, signatureProof.Signature) {
-		return sdkerrors.Wrap(
-			clienttypes.ErrFailedNextSeqRecvVerification,
-			"failed to verify proof against current public key, sequence, and the next sequence number to be received",
-		)
+	if consensusState == nil {
+		return nil, sdkerrors.Wrap(clienttypes.ErrInvalidConsensus, "consensus state cannot be empty")
 	}
 
-	cs.ConsensusState.Sequence++
-	setClientState(store, cs)
-	return nil
+	_, ok = consensusState.(ConsensusState)
+	if !ok {
+		return nil, sdkerrors.Wrapf(clienttypes.ErrInvalidConsensus, "invalid consensus type %T, expected %T", consensusState, ConsensusState{})
+	}
+
+	return signatureProof.Signature, nil
 }
 
-// combineSequenceAndPath appends the sequence and path represented as bytes.
-func combineSequenceAndPath(sequence uint64, path commitmenttypes.MerklePath) []byte {
-	return append(
-		sdk.Uint64ToBigEndian(sequence),
-		[]byte(path.String())...,
-	)
-}
-
-// sets the client state to the store
+// sets the client state in the store
 func setClientState(store sdk.KVStore, clientState clientexported.ClientState) {
 	bz := SubModuleCdc.MustMarshalBinaryBare(clientState)
 	store.Set(host.KeyClientState(), bz)
+}
+
+// sets the consensus state in the store.
+func setConsensusState(store sdk.KVStore, sequence uint64, consensusState clientexported.ConsensusState) {
+	bz := k.cdc.MustMarshalBinaryBare(consensusState)
+	store.Set(host.KeyConsensusState(sequence), bz)
 }
