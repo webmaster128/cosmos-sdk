@@ -4,6 +4,7 @@ import (
 	"github.com/tendermint/tendermint/crypto"
 
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
+	commitmenttypes "github.com/cosmos/cosmos-sdk/x/ibc/23-commitment/types"
 )
 
 // CheckSignature verifies if the the provided public key generated the signature
@@ -14,6 +15,26 @@ func CheckSignature(pubKey crypto.PubKey, data, signature []byte) error {
 	}
 
 	return nil
+}
+
+// EvidenceSignBytes returns the sign bytes for verification of misbehaviour.
+//
+// Format: {sequence}{data}
+func EvidenceSignBytes(sequence uint64, data []byte) []byte {
+	return append(
+		sdk.Uint64ToBigEndian(sequence),
+		data...,
+	)
+}
+
+// HeaderSignBytes returns the sign bytes for verification of misbehaviour.
+//
+// Format: {sequence}{header.newPubKey}
+func HeaderSignBytes(header Header) []byte {
+	return append(
+		header.Sequence,
+		header.NewPubKey.Bytes()...,
+	)
 }
 
 // ConsensusStateSignBytes returns the sign bytes for verification of the

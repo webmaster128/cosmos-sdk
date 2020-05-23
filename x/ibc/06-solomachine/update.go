@@ -40,21 +40,18 @@ func CheckValidityAndUpdateState(
 // checkValidity checks if the Solo Machine update signature is valid.
 func checkValidity(clientState ClientState, header Header) error {
 	// assert update sequence is current sequence
-	if header.Sequence != clientState.ConsensusState.Sequence {
+	if header.Sequence != clientState.LatestSequence {
 		return sdkerrors.Wrapf(
 			clienttypes.ErrInvalidHeader,
-			"sequence provided in the header does not match the client state sequence (%d != %d)", header.Sequence, clientState.ConsensusState.Sequence,
+			"sequence provided in the header does not match the client state sequence (%d != %d)", header.Sequence, clientState.LatestSequence,
 		)
 	}
 
 	// assert currently registered public key signed over the new public key with correct sequence
-	data := append(
-		sdk.Uint64ToBigEndian(header.Sequence),
-		header.NewPubKey.Bytes()...,
-	)
+	data := HeaderSignBytes(header)
 
 	if err := CheckSignature(clientState.ConsensusState.PubKey, data, header.Signature); err != nil {
-		return sdkerrors.Wrap(err, "header signature verification failed")
+		return sdkerrors.Wrap(ErrInvalidHeader, err.Error())
 	}
 
 	return nil
@@ -64,7 +61,7 @@ func checkValidity(clientState ClientState, header Header) error {
 func update(clientState ClientState, header Header) (ClientState, ConsensusState) {
 	consensusState := ConsensusState{
 		// increment sequence number
-		Sequence: clientState.ConsensusState.Sequence + 1,
+		Sequence: clientState.LatestSequence + 1,
 		PubKey:   header.NewPubKey,
 	}
 

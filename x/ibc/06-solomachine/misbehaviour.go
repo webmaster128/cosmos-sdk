@@ -14,7 +14,7 @@ import (
 // the client state is updated to a frozen status.
 func CheckMisbehaviourAndUpdateState(
 	clientState clientexported.ClientState,
-	_ clientexported.ConsensusState,
+	consensusState clientexported.ConsensusState,
 	misbehaviour clientexported.Misbehaviour,
 ) (clientexported.ClientState, error) {
 
@@ -24,8 +24,9 @@ func CheckMisbehaviourAndUpdateState(
 		return nil, sdkerrors.Wrapf(clienttypes.ErrInvalidClientType, "client state type %T is not solo machine", clientState)
 	}
 
-	if smClientState.IsFrozen() {
-		return nil, sdkerrors.Wrapf(clienttypes.ErrClientFrozen, "client is already frozen")
+	smConsensusState, ok := consensusState.(ConsensusState)
+	if !ok {
+		return nil, sdkerrors.Wrapf(clienttypes.ErrInvalidConsensus, "consensus state type %T, expected %T", consensusState, ConsensusState{})
 	}
 
 	evidence, ok := misbehaviour.(Evidence)
@@ -33,7 +34,12 @@ func CheckMisbehaviourAndUpdateState(
 		return nil, sdkerrors.Wrapf(clienttypes.ErrInvalidClientType, "evidence type %T is not solo machine", misbehaviour)
 	}
 
-	if err := checkMisbehaviour(smClientState, evidence); err != nil {
+	if smClientState.IsFrozen() && smClientState.FrozenSequence <= evidence.Sequence {
+		return nil, sdkerrors.Wrapf(clienttypes.ErrClientFrozen, "client is already frozen")
+	}
+
+	// verify evidence
+	if err := checkMisbehaviour(smClientState, consensusState, evidence); err != nil {
 		return nil, err
 	}
 
@@ -43,22 +49,22 @@ func CheckMisbehaviourAndUpdateState(
 
 // checkMisbehaviour checks if the currently registered public key has signed
 // over two different messages at the same sequence.
-func checkMisbehaviour(clientState ClientState, evidence Evidence) error {
-	pubKey := clientState.ConsensusState.PubKey
+func checkMisbehaviour(clientState ClientState, consensusState ConsensusState, evidence Evidence) error {
+	pubKey := consensusState.PubKey
 
 	// assert that provided signature data are different
 	if bytes.Equal(evidence.SignatureOne.Data, evidence.SignatureTwo.Data) {
 		return sdkerrors.Wrap(clienttypes.ErrInvalidEvidence, "evidence signatures have identical data messages")
 	}
 
-	data := append(sdk.Uint64ToBigEndian(evidence.Sequence), evidence.SignatureOne.Data...)
+	data := EvidenceSignBytes(sequence, evidence.SignatureOne.Data)
 
 	// check first signature
 	if err := CheckSignature(pubKey, data, evidence.SignatureOne.Signature); err != nil {
 		return sdkerrors.Wrap(err, "evidence signature one failed to be verified")
 	}
 
-	data = append(sdk.Uint64ToBigEndian(evidence.Sequence), evidence.SignatureTwo.Data...)
+	data = EvidenceSignBytes(sequence, evidence.SignatureTwo.Data)
 
 	// check second signature
 	if err := CheckSignature(pubKey, data, evidence.SignatureTwo.Signature); err != nil {
