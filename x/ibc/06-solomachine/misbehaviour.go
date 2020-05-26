@@ -34,7 +34,7 @@ func CheckMisbehaviourAndUpdateState(
 		return nil, sdkerrors.Wrapf(clienttypes.ErrInvalidClientType, "evidence type %T is not solo machine", misbehaviour)
 	}
 
-	if smClientState.IsFrozen() && smClientState.FrozenSequence <= evidence.Sequence {
+	if smClientState.IsFrozen() {
 		return nil, sdkerrors.Wrapf(clienttypes.ErrClientFrozen, "client is already frozen")
 	}
 
@@ -43,7 +43,7 @@ func CheckMisbehaviourAndUpdateState(
 		return nil, err
 	}
 
-	smClientState.FrozenSequence = evidence.Sequence
+	smClientState.Frozen = true
 	return smClientState, nil
 }
 

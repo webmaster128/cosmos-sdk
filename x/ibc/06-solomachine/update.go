@@ -40,10 +40,10 @@ func CheckValidityAndUpdateState(
 // checkValidity checks if the Solo Machine update signature is valid.
 func checkValidity(clientState ClientState, header Header) error {
 	// assert update sequence is current sequence
-	if header.Sequence != clientState.LatestSequence {
+	if header.Sequence != clientState.ConsensusState.Sequence {
 		return sdkerrors.Wrapf(
 			clienttypes.ErrInvalidHeader,
-			"sequence provided in the header does not match the client state sequence (%d != %d)", header.Sequence, clientState.LatestSequence,
+			"sequence provided in the header does not match the client state sequence (%d != %d)", header.Sequence, clientState.ConsensusState.Sequence,
 		)
 	}
 
@@ -61,7 +61,7 @@ func checkValidity(clientState ClientState, header Header) error {
 func update(clientState ClientState, header Header) (ClientState, ConsensusState) {
 	consensusState := ConsensusState{
 		// increment sequence number
-		Sequence: clientState.LatestSequence + 1,
+		Sequence: clientState.ConsensusState + 1,
 		PubKey:   header.NewPubKey,
 	}
 
