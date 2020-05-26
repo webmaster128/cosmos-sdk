@@ -15,20 +15,30 @@ const (
 
 var (
 	// functions aliases
-	InitializeFromMsg              = types.InitializeFromMsg
-	NewClientState                 = types.NewClientState
-	RegisterCodec                  = types.RegisterCodec
-	SetSubModuleCodec              = types.SetSubModuleCodec
-	NewMsgCreateClient             = types.NewMsgCreateClient
-	NewMsgUpdateClient             = types.NewMsgUpdateClient
-	NewMsgSubmitClientMisbehaviour = types.NewMsgSubmitClientMisbehaviour
-	CheckSignature                 = types.CheckSignature
+	InitializeFromMsg                     = types.InitializeFromMsg
+	NewClientState                        = types.NewClientState
+	RegisterCodec                         = types.RegisterCodec
+	SetSubModuleCodec                     = types.SetSubModuleCodec
+	NewMsgCreateClient                    = types.NewMsgCreateClient
+	NewMsgUpdateClient                    = types.NewMsgUpdateClient
+	NewMsgSubmitClientMisbehaviour        = types.NewMsgSubmitClientMisbehaviour
+	CheckSignature                        = types.CheckSignature
+	EvidenceSignBytes                     = types.EvidenceSignBytes
+	HeaderSignBytes                       = types.HeaderSignBytes
+	ConsensusStateSignBytes               = types.ConsensusStateSignBytes
+	ConnectionStateSignBytes              = types.ConnectionStateSignBytes
+	ChannelStateSignBytes                 = types.ChannelStateSignBytes
+	PacketCommitmentSignBytes             = types.PacketCommitmentSignBytes
+	PacketAcknowledgementSignBytes        = types.PacketAcknowledgementSignBytes
+	PacketAcknowledgementAbsenceSignBytes = types.PacketAcknowledgementAbsenceSignBytes
+	NextSequenceRecvSignBytes             = types.NextSequenceRecvSignBytes
 
 	// variable aliases
-	SubModuleCdc               = types.SubModuleCdc
-	ErrInvalidHeader           = types.ErrInvalidHeader
-	ErrInvalidSequence         = types.ErrInvalidSequence
-	ErrInvalidSignatureAndData = types.ErrInvalidSignatureAndData
+	SubModuleCdc                   = types.SubModuleCdc
+	ErrInvalidHeader               = types.ErrInvalidHeader
+	ErrInvalidSequence             = types.ErrInvalidSequence
+	ErrInvalidSignatureAndData     = types.ErrInvalidSignatureAndData
+	ErrSignatureVerificationFailed = types.ErrSignatureVerificationFailed
 )
 
 type (

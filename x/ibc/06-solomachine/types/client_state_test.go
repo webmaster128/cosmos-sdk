@@ -125,7 +125,7 @@ func (suite *SoloMachineTestSuite) TestVerifyClientConsensusState() {
 		tc := tc
 
 		err := tc.clientState.VerifyClientConsensusState(
-			suite.store, suite.aminoCdc, nil, 0, counterpartyClientIdentifier, consensusHeight, tc.prefix, tc.proof, tc.clientState.ConsensusState,
+			suite.store, suite.aminoCdc, nil, suite.sequence, counterpartyClientIdentifier, consensusHeight, tc.prefix, tc.proof, tc.clientState.ConsensusState,
 		)
 
 		if tc.expPass {
@@ -203,7 +203,7 @@ func (suite *SoloMachineTestSuite) TestVerifyConnectionState() {
 		tc := tc
 
 		err := tc.clientState.VerifyConnectionState(
-			suite.store, suite.cdc, 0, tc.prefix, tc.proof, testConnectionID, conn, tc.clientState.ConsensusState,
+			suite.store, suite.cdc, suite.sequence, tc.prefix, tc.proof, testConnectionID, conn, tc.clientState.ConsensusState,
 		)
 
 		if tc.expPass {
@@ -281,7 +281,7 @@ func (suite *SoloMachineTestSuite) TestVerifyChannelState() {
 		tc := tc
 
 		err := tc.clientState.VerifyChannelState(
-			suite.store, suite.cdc, 0, tc.prefix, tc.proof, testPortID, testChannelID, ch, tc.clientState.ConsensusState,
+			suite.store, suite.cdc, suite.sequence, tc.prefix, tc.proof, testPortID, testChannelID, ch, tc.clientState.ConsensusState,
 		)
 
 		if tc.expPass {
@@ -355,7 +355,7 @@ func (suite *SoloMachineTestSuite) TestVerifyPacketCommitment() {
 		tc := tc
 
 		err := tc.clientState.VerifyPacketCommitment(
-			suite.store, 0, tc.prefix, tc.proof, testPortID, testChannelID, suite.sequence, commitmentBytes, tc.clientState.ConsensusState,
+			suite.store, suite.sequence, tc.prefix, tc.proof, testPortID, testChannelID, suite.sequence, commitmentBytes, tc.clientState.ConsensusState,
 		)
 
 		if tc.expPass {
@@ -429,7 +429,7 @@ func (suite *SoloMachineTestSuite) TestVerifyPacketAcknowledgement() {
 		tc := tc
 
 		err := tc.clientState.VerifyPacketAcknowledgement(
-			suite.store, 0, tc.prefix, tc.proof, testPortID, testChannelID, suite.sequence, ack, tc.clientState.ConsensusState,
+			suite.store, suite.sequence, tc.prefix, tc.proof, testPortID, testChannelID, suite.sequence, ack, tc.clientState.ConsensusState,
 		)
 
 		if tc.expPass {
@@ -501,7 +501,7 @@ func (suite *SoloMachineTestSuite) TestVerifyPacketAcknowledgementAbsence() {
 		tc := tc
 
 		err := tc.clientState.VerifyPacketAcknowledgementAbsence(
-			suite.store, 0, tc.prefix, tc.proof, testPortID, testChannelID, suite.sequence, tc.clientState.ConsensusState,
+			suite.store, suite.sequence, tc.prefix, tc.proof, testPortID, testChannelID, suite.sequence, tc.clientState.ConsensusState,
 		)
 
 		if tc.expPass {
@@ -575,7 +575,7 @@ func (suite *SoloMachineTestSuite) TestVerifyNextSeqRecv() {
 		tc := tc
 
 		err := tc.clientState.VerifyNextSequenceRecv(
-			suite.store, 0, tc.prefix, tc.proof, testPortID, testChannelID, nextSeqRecv, tc.clientState.ConsensusState,
+			suite.store, suite.sequence, tc.prefix, tc.proof, testPortID, testChannelID, nextSeqRecv, tc.clientState.ConsensusState,
 		)
 
 		if tc.expPass {

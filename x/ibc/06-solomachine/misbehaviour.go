@@ -3,7 +3,6 @@ package solomachine
 import (
 	"bytes"
 
-	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	clientexported "github.com/cosmos/cosmos-sdk/x/ibc/02-client/exported"
 	clienttypes "github.com/cosmos/cosmos-sdk/x/ibc/02-client/types"
@@ -39,7 +38,7 @@ func CheckMisbehaviourAndUpdateState(
 	}
 
 	// verify evidence
-	if err := checkMisbehaviour(smClientState, consensusState, evidence); err != nil {
+	if err := checkMisbehaviour(smClientState, smConsensusState, evidence); err != nil {
 		return nil, err
 	}
 
@@ -57,14 +56,14 @@ func checkMisbehaviour(clientState ClientState, consensusState ConsensusState, e
 		return sdkerrors.Wrap(clienttypes.ErrInvalidEvidence, "evidence signatures have identical data messages")
 	}
 
-	data := EvidenceSignBytes(sequence, evidence.SignatureOne.Data)
+	data := EvidenceSignBytes(evidence.Sequence, evidence.SignatureOne.Data)
 
 	// check first signature
 	if err := CheckSignature(pubKey, data, evidence.SignatureOne.Signature); err != nil {
 		return sdkerrors.Wrap(err, "evidence signature one failed to be verified")
 	}
 
-	data = EvidenceSignBytes(sequence, evidence.SignatureTwo.Data)
+	data = EvidenceSignBytes(evidence.Sequence, evidence.SignatureTwo.Data)
 
 	// check second signature
 	if err := CheckSignature(pubKey, data, evidence.SignatureTwo.Signature); err != nil {

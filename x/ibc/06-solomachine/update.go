@@ -1,7 +1,6 @@
 package solomachine
 
 import (
-	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	clientexported "github.com/cosmos/cosmos-sdk/x/ibc/02-client/exported"
 	clienttypes "github.com/cosmos/cosmos-sdk/x/ibc/02-client/types"
@@ -61,7 +60,7 @@ func checkValidity(clientState ClientState, header Header) error {
 func update(clientState ClientState, header Header) (ClientState, ConsensusState) {
 	consensusState := ConsensusState{
 		// increment sequence number
-		Sequence: clientState.ConsensusState + 1,
+		Sequence: clientState.ConsensusState.Sequence + 1,
 		PubKey:   header.NewPubKey,
 	}
 

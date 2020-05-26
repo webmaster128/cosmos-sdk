@@ -3,7 +3,14 @@ package types
 import (
 	"github.com/tendermint/tendermint/crypto"
 
+	"github.com/cosmos/cosmos-sdk/codec"
+	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
+	clienttypes "github.com/cosmos/cosmos-sdk/x/ibc/02-client/types"
+	connectionexported "github.com/cosmos/cosmos-sdk/x/ibc/03-connection/exported"
+	connectiontypes "github.com/cosmos/cosmos-sdk/x/ibc/03-connection/types"
+	channelexported "github.com/cosmos/cosmos-sdk/x/ibc/04-channel/exported"
+	channeltypes "github.com/cosmos/cosmos-sdk/x/ibc/04-channel/types"
 	commitmenttypes "github.com/cosmos/cosmos-sdk/x/ibc/23-commitment/types"
 )
 
@@ -11,7 +18,7 @@ import (
 // over the given data.
 func CheckSignature(pubKey crypto.PubKey, data, signature []byte) error {
 	if !pubKey.VerifyBytes(data, signature) {
-		return sdkerrors.Wrap(ErrSignatureVerificationFailed, "signature verification failed")
+		return ErrSignatureVerificationFailed
 	}
 
 	return nil
@@ -32,7 +39,7 @@ func EvidenceSignBytes(sequence uint64, data []byte) []byte {
 // Format: {sequence}{header.newPubKey}
 func HeaderSignBytes(header Header) []byte {
 	return append(
-		header.Sequence,
+		sdk.Uint64ToBigEndian(header.Sequence),
 		header.NewPubKey.Bytes()...,
 	)
 }
@@ -49,7 +56,7 @@ func ConsensusStateSignBytes(
 ) ([]byte, error) {
 	bz, err := cdc.MarshalBinaryBare(consensusState)
 	if err != nil {
-		return []byte{}, err
+		return nil, err
 	}
 
 	// sequence + path + consensus state
@@ -66,17 +73,17 @@ func ConsensusStateSignBytes(
 func ConnectionStateSignBytes(
 	cdc codec.Marshaler,
 	sequence uint64,
-	connectionEnd connectionexported.ConnectionI,
 	path commitmenttypes.MerklePath,
+	connectionEnd connectionexported.ConnectionI,
 ) ([]byte, error) {
 	connection, ok := connectionEnd.(connectiontypes.ConnectionEnd)
 	if !ok {
-		return []byte{}, sdkerrors.Wrapf(clienttypes.ErrInvalidClientType, "invalid connection type %T", connectionEnd)
+		return nil, sdkerrors.Wrapf(clienttypes.ErrInvalidClientType, "invalid connection type %T", connectionEnd)
 	}
 
 	bz, err := cdc.MarshalBinaryBare(&connection)
 	if err != nil {
-		return []byte{}, err
+		return nil, err
 	}
 
 	// sequence + path + connection end
@@ -93,17 +100,17 @@ func ConnectionStateSignBytes(
 func ChannelStateSignBytes(
 	cdc codec.Marshaler,
 	sequence uint64,
-	channelEnd channeltypes.ChannelI,
 	path commitmenttypes.MerklePath,
+	channelEnd channelexported.ChannelI,
 ) ([]byte, error) {
-	channelEnd, ok := channel.(channeltypes.Channel)
+	channel, ok := channelEnd.(channeltypes.Channel)
 	if !ok {
-		return sdkerrors.Wrapf(clienttypes.ErrInvalidClientType, "invalid channel type %T", channel)
+		return nil, sdkerrors.Wrapf(clienttypes.ErrInvalidClientType, "invalid channel type %T", channelEnd)
 	}
 
-	bz, err := cdc.MarshalBinaryBare(&channelEnd)
+	bz, err := cdc.MarshalBinaryBare(&channel)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// sequence + path + channel
@@ -119,15 +126,15 @@ func ChannelStateSignBytes(
 // Format: {sequence}{path}{commitment-bytes}
 func PacketCommitmentSignBytes(
 	sequence uint64,
-	commitmentBytes []byte,
 	path commitmenttypes.MerklePath,
-) ([]byte, error) {
+	commitmentBytes []byte,
+) []byte {
 
 	// sequence + path + commitment bytes
 	return append(
 		combineSequenceAndPath(sequence, path),
 		commitmentBytes...,
-	), nil
+	)
 }
 
 // PacketAcknowledgementSignBytes returns the sign bytes for verification of
@@ -136,15 +143,15 @@ func PacketCommitmentSignBytes(
 // Format: {sequence}{path}{acknowledgement}
 func PacketAcknowledgementSignBytes(
 	sequence uint64,
-	acknowledgement []byte,
 	path commitmenttypes.MerklePath,
+	acknowledgement []byte,
 ) []byte {
 
 	// sequence + path + acknowledgement
 	return append(
 		combineSequenceAndPath(sequence, path),
 		acknowledgement...,
-	), nil
+	)
 }
 
 // PacketAcknowledgementAbsenceSignBytes returns the sign bytes for verificaiton
@@ -153,27 +160,27 @@ func PacketAcknowledgementSignBytes(
 // Format: {sequence}{path}
 func PacketAcknowledgementAbsenceSignBytes(
 	sequence uint64,
-	path commitmentState,
-) ([]byte, error) {
+	path commitmenttypes.MerklePath,
+) []byte {
 	// value = sequence + path
-	return combineSequenceAndPath(sequence, path), nil
+	return combineSequenceAndPath(sequence, path)
 }
 
 // NextSequenceRecv returns the sign bytes for verification of the next
 // sequence to be received.
 //
 // Format: {sequence}{path}{next-sequence-recv}
-func NextSequenceRecv(
+func NextSequenceRecvSignBytes(
 	sequence uint64,
 	path commitmenttypes.MerklePath,
 	nextSequenceRecv uint64,
-) ([]byte, error) {
+) []byte {
 
 	// sequence + path + nextSequenceRecv
 	return append(
 		combineSequenceAndPath(sequence, path),
 		sdk.Uint64ToBigEndian(nextSequenceRecv)...,
-	), nil
+	)
 }
 
 // combineSequenceAndPath appends the sequence and path represented as bytes.
