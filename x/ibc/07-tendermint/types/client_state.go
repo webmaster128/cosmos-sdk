@@ -399,7 +399,7 @@ func validateVerificationArgs(
 		return sdkerrors.Wrap(commitmenttypes.ErrInvalidPrefix, "prefix cannot be empty")
 	}
 
-	_, ok := prefix.(commitmenttypes.MerklePrefix)
+	_, ok := prefix.(*commitmenttypes.MerklePrefix)
 	if !ok {
 		return sdkerrors.Wrapf(commitmenttypes.ErrInvalidPrefix, "invalid prefix type %T, expected MerklePrefix", prefix)
 	}
@@ -408,7 +408,7 @@ func validateVerificationArgs(
 		return sdkerrors.Wrap(commitmenttypes.ErrInvalidProof, "proof cannot be empty")
 	}
 
-	_, ok := proof.(commitmenttypes.MerkleProof)
+	_, ok = proof.(commitmenttypes.MerkleProof)
 	if !ok {
 		return sdkerrors.Wrapf(commitmenttypes.ErrInvalidProof, "invalid proof type %T, expected MerkleProof", proof)
 	}
@@ -417,7 +417,7 @@ func validateVerificationArgs(
 		return sdkerrors.Wrap(clienttypes.ErrInvalidConsensus, "consensus state cannot be empty")
 	}
 
-	_, ok := consensusState.(ConsensusState)
+	_, ok = consensusState.(ConsensusState)
 	if !ok {
 		return sdkerrors.Wrapf(clienttypes.ErrInvalidConsensus, "invalid consensus type %T, expected %T", consensusState, ConsensusState{})
 	}

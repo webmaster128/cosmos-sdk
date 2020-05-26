@@ -72,12 +72,17 @@ func (c ConnectionEnd) ValidateBasic() error {
 var _ exported.CounterpartyI = (*Counterparty)(nil)
 
 // NewCounterparty creates a new Counterparty instance.
-func NewCounterparty(clientID, connectionID string, prefix commitmenttypes.MerklePrefix) Counterparty {
+func NewCounterparty(clientID, connectionID string, prefix commitmentexported.Prefix) (Counterparty, error) {
+	any, err := prefix.PackAny()
+	if err != nil {
+		return Counterparty{}, err
+	}
+
 	return Counterparty{
 		ClientID:     clientID,
 		ConnectionID: connectionID,
-		Prefix:       prefix,
-	}
+		Prefix:       *any,
+	}, nil
 }
 
 // GetClientID implements the CounterpartyI interface
@@ -91,8 +96,8 @@ func (c Counterparty) GetConnectionID() string {
 }
 
 // GetPrefix implements the CounterpartyI interface
-func (c Counterparty) GetPrefix() commitmentexported.Prefix {
-	return &c.Prefix
+func (c Counterparty) GetPrefix() (commitmentexported.Prefix, error) {
+	return commitmenttypes.UnpackAnyPrefix(&c.Prefix)
 }
 
 // ValidateBasic performs a basic validation check of the identifiers and prefix
@@ -103,7 +108,11 @@ func (c Counterparty) ValidateBasic() error {
 	if err := host.ClientIdentifierValidator(c.ClientID); err != nil {
 		return sdkerrors.Wrap(err, "invalid counterparty client ID")
 	}
-	if c.Prefix.IsEmpty() {
+	prefix, err := c.GetPrefix()
+	if err != nil {
+		return err
+	}
+	if prefix == nil || prefix.IsEmpty() {
 		return sdkerrors.Wrap(ErrInvalidCounterparty, "counterparty prefix cannot be empty")
 	}
 	return nil

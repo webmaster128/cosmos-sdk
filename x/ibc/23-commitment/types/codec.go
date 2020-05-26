@@ -3,6 +3,7 @@ package types
 import (
 	"github.com/cosmos/cosmos-sdk/codec"
 	cdctypes "github.com/cosmos/cosmos-sdk/codec/types"
+	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	"github.com/cosmos/cosmos-sdk/x/ibc/23-commitment/exported"
 )
 
@@ -64,4 +65,52 @@ var (
 func init() {
 	RegisterCodec(amino)
 	amino.Seal()
+}
+
+// UnpackAnyPrefix unpacks a protobuf Any and sets the value to the current prefix.
+func UnpackAnyPrefix(any *cdctypes.Any) (exported.Prefix, error) {
+	var prefix exported.Prefix
+	cachedValue := any.GetCachedValue()
+
+	if cachedValue == nil {
+		registry := cdctypes.NewInterfaceRegistry()
+		RegisterInterfaces(registry)
+
+		if err := registry.UnpackAny(any, &prefix); err != nil {
+			return nil, sdkerrors.Wrapf(sdkerrors.ErrProtobufAny, err.Error())
+		}
+
+		return prefix, nil
+	}
+
+	prefix, ok := cachedValue.(exported.Prefix)
+	if !ok {
+		return nil, sdkerrors.Wrapf(sdkerrors.ErrProtobufAny, "cached value %T is not a valid prefix", cachedValue)
+	}
+
+	return prefix, nil
+}
+
+// UnpackAnyProof unpacks a protobuf Any and sets the value to the current proof.
+func UnpackAnyProof(any *cdctypes.Any) (exported.Proof, error) {
+	var proof exported.Proof
+	cachedValue := any.GetCachedValue()
+
+	if cachedValue == nil {
+		registry := cdctypes.NewInterfaceRegistry()
+		RegisterInterfaces(registry)
+
+		if err := registry.UnpackAny(any, &proof); err != nil {
+			return nil, sdkerrors.Wrapf(sdkerrors.ErrProtobufAny, err.Error())
+		}
+
+		return proof, nil
+	}
+
+	proof, ok := cachedValue.(exported.Proof)
+	if !ok {
+		return nil, sdkerrors.Wrapf(sdkerrors.ErrProtobufAny, "cached value %T is not a valid proof", cachedValue)
+	}
+
+	return proof, nil
 }

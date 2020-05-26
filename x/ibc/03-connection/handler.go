@@ -2,7 +2,9 @@ package connection
 
 import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
+	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	"github.com/cosmos/cosmos-sdk/x/ibc/03-connection/types"
+	commitmenttypes "github.com/cosmos/cosmos-sdk/x/ibc/23-commitment/types"
 )
 
 // HandleMsgConnectionOpenInit defines the sdk.Handler for MsgConnectionOpenInit
@@ -33,9 +35,19 @@ func HandleMsgConnectionOpenInit(ctx sdk.Context, k Keeper, msg MsgConnectionOpe
 
 // HandleMsgConnectionOpenTry defines the sdk.Handler for MsgConnectionOpenTry
 func HandleMsgConnectionOpenTry(ctx sdk.Context, k Keeper, msg MsgConnectionOpenTry) (*sdk.Result, error) {
+	proofInit, err := commitmenttypes.UnpackAnyProof(&msg.ProofInit)
+	if err != nil {
+		return nil, sdkerrors.Wrap(err, "invalid proof init")
+	}
+
+	proofConsensus, err := commitmenttypes.UnpackAnyProof(&msg.ProofConsensus)
+	if err != nil {
+		return nil, sdkerrors.Wrap(err, "invalid proof consensus")
+	}
+
 	if err := k.ConnOpenTry(
 		ctx, msg.ConnectionID, msg.Counterparty, msg.ClientID,
-		msg.CounterpartyVersions, msg.ProofInit, msg.ProofConsensus,
+		msg.CounterpartyVersions, proofInit, proofConsensus,
 		msg.ProofHeight, msg.ConsensusHeight,
 	); err != nil {
 		return nil, err
@@ -61,8 +73,18 @@ func HandleMsgConnectionOpenTry(ctx sdk.Context, k Keeper, msg MsgConnectionOpen
 
 // HandleMsgConnectionOpenAck defines the sdk.Handler for MsgConnectionOpenAck
 func HandleMsgConnectionOpenAck(ctx sdk.Context, k Keeper, msg MsgConnectionOpenAck) (*sdk.Result, error) {
+	proofTry, err := commitmenttypes.UnpackAnyProof(&msg.ProofTry)
+	if err != nil {
+		return nil, sdkerrors.Wrap(err, "invalid proof try")
+	}
+
+	proofConsensus, err := commitmenttypes.UnpackAnyProof(&msg.ProofConsensus)
+	if err != nil {
+		return nil, sdkerrors.Wrap(err, "invalid proof consensus")
+	}
+
 	if err := k.ConnOpenAck(
-		ctx, msg.ConnectionID, msg.Version, msg.ProofTry, msg.ProofConsensus,
+		ctx, msg.ConnectionID, msg.Version, proofTry, proofConsensus,
 		msg.ProofHeight, msg.ConsensusHeight,
 	); err != nil {
 		return nil, err
@@ -86,8 +108,13 @@ func HandleMsgConnectionOpenAck(ctx sdk.Context, k Keeper, msg MsgConnectionOpen
 
 // HandleMsgConnectionOpenConfirm defines the sdk.Handler for MsgConnectionOpenConfirm
 func HandleMsgConnectionOpenConfirm(ctx sdk.Context, k Keeper, msg MsgConnectionOpenConfirm) (*sdk.Result, error) {
+	proofAck, err := commitmenttypes.UnpackAnyProof(&msg.ProofAck)
+	if err != nil {
+		return nil, sdkerrors.Wrap(err, "invalid proof ack")
+	}
+
 	if err := k.ConnOpenConfirm(
-		ctx, msg.ConnectionID, msg.ProofAck, msg.ProofHeight,
+		ctx, msg.ConnectionID, proofAck, msg.ProofHeight,
 	); err != nil {
 		return nil, err
 	}

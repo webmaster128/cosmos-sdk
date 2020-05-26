@@ -382,7 +382,7 @@ func validateVerificationArgs(
 		return sdkerrors.Wrap(commitmenttypes.ErrInvalidProof, "proof cannot be empty")
 	}
 
-	_, ok := proof.(commitmenttypes.SignatureProof)
+	_, ok = proof.(commitmenttypes.SignatureProof)
 	if !ok {
 		return sdkerrors.Wrapf(commitmenttypes.ErrInvalidProof, "invalid proof type %T, expected SignatureProof", proof)
 	}
@@ -391,7 +391,7 @@ func validateVerificationArgs(
 		return sdkerrors.Wrap(clienttypes.ErrInvalidConsensus, "consensus state cannot be empty")
 	}
 
-	_, ok := consensusState.(ConsensusState)
+	_, ok = consensusState.(ConsensusState)
 	if !ok {
 		return sdkerrors.Wrapf(clienttypes.ErrInvalidConsensus, "invalid consensus type %T, expected %T", consensusState, ConsensusState{})
 	}
