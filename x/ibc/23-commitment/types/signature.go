@@ -72,12 +72,12 @@ func (SignatureProof) GetCommitmentType() exported.Type {
 
 // VerifyMembership implements ProofI.
 func (SignatureProof) VerifyMembership(exported.Root, exported.Path, []byte) error {
-	return nil
+	panic("verify membership is not implemented for signature proofs")
 }
 
 // VerifyNonMembership implements ProofI.
 func (SignatureProof) VerifyNonMembership(exported.Root, exported.Path) error {
-	return nil
+	panic("verify non membership is not implemented for signature proofs")
 }
 
 // IsEmpty returns true if the signature is empty.
