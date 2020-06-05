@@ -20,7 +20,6 @@ const (
 	flagMultisig = "multisig"
 	flagAppend   = "append"
 	flagSigOnly  = "signature-only"
-	flagOutfile  = "output-document"
 )
 
 // GetSignBatchCommand returns the transaction sign-batch command.
@@ -184,7 +183,7 @@ be generated via the 'multisign' command.
 		"Append the signature to the existing ones. If disabled, old signatures would be overwritten. Ignored if --multisig is on",
 	)
 	cmd.Flags().Bool(flagSigOnly, false, "Print only the generated signature, then exit")
-	cmd.Flags().String(flagOutfile, "", "The document will be written to the given file instead of STDOUT")
+	cmd.Flags().String(flags.FlagOutputDocument, "", "The document will be written to the given file instead of STDOUT")
 	cmd = flags.PostCommands(cmd)[0]
 	cmd.MarkFlagRequired(flags.FlagFrom)
 
@@ -237,13 +236,13 @@ func makeSignCmd(cdc *codec.Codec) func(cmd *cobra.Command, args []string) error
 			return err
 		}
 
-		if viper.GetString(flagOutfile) == "" {
+		if viper.GetString(flags.FlagOutputDocument) == "" {
 			fmt.Printf("%s\n", json)
 			return nil
 		}
 
 		fp, err := os.OpenFile(
-			viper.GetString(flagOutfile), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644,
+			viper.GetString(flags.FlagOutputDocument), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644,
 		)
 		if err != nil {
 			return err
