@@ -36,7 +36,7 @@ the command updates the sequence number accordingly.
 If the flag --signature-only flag is set, it will output a JSON representation
 of the generated signature only.
 
-The --offline flag makes sure that the authclient will not reach out to full node.
+The --offline flag makes sure that the client will not reach out to full node.
 As a result, the account and the sequence number queries will not be performed and
 it is required to set such parameters manually. Note, invalid values will cause
 the transaction to fail. The sequence will be incremented automatically for each
