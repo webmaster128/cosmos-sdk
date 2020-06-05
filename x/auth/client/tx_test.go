@@ -3,8 +3,10 @@ package client
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -133,6 +135,46 @@ func TestReadStdTxFromFile(t *testing.T) {
 	decodedTx, err := ReadStdTxFromFile(cdc, jsonTxFile.Name())
 	require.NoError(t, err)
 	require.Equal(t, decodedTx.Memo, "foomemo")
+}
+
+func TestBatchScanner_Scan(t *testing.T) {
+	cdc := codec.New()
+	sdk.RegisterCodec(cdc)
+
+	// Build a test transaction
+	fee := authtypes.NewStdFee(50000, sdk.Coins{sdk.NewInt64Coin("atom", 150)})
+	stdTx := authtypes.NewStdTx([]sdk.Msg{}, fee, []authtypes.StdSignature{}, "foomemo")
+
+	// Write it twice to the scanner
+
+	buffer := strings.Builder{}
+	encodedTx, err := cdc.MarshalJSON(stdTx)
+	require.NoError(t, err)
+	buffer.WriteString(fmt.Sprintf("%s\n", encodedTx))
+	buffer.WriteString(fmt.Sprintf("%s\n", encodedTx))
+
+	// Write malformed line
+	buffer.WriteString("malformed\n")
+
+	// write another stdtx
+	buffer.WriteString(fmt.Sprintf("%s\n", encodedTx))
+
+	i := 0
+	scanner := NewBatchScanner(cdc, strings.NewReader(buffer.String()))
+
+	for scanner.Scan() {
+		stdTx := scanner.StdTx()
+		require.Equal(t, "atom", stdTx.Fee.Amount[0].Denom)
+		require.Equal(t, int64(150), stdTx.Fee.Amount[0].Amount.Int64())
+		i++
+	}
+
+	// no error return from bufio.Scanner
+	require.NoError(t, scanner.Err())
+	// unmarshalling error was returned
+	require.EqualError(t, scanner.UnmarshalErr(), "invalid character 'm' looking for beginning of value")
+	// once an error occurs, the remaining transactions are ignored
+	require.Equal(t, 2, i)
 }
 
 func compareEncoders(t *testing.T, expected sdk.TxEncoder, actual sdk.TxEncoder) {
