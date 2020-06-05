@@ -3,14 +3,12 @@ package client
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io/ioutil"
 	"os"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
 	"github.com/tendermint/tendermint/crypto/ed25519"
 
 	"github.com/cosmos/cosmos-sdk/codec"
@@ -119,6 +117,7 @@ func TestConfiguredTxEncoder(t *testing.T) {
 }
 
 func TestReadStdTxFromFile(t *testing.T) {
+	t.Parallel()
 	cdc := codec.New()
 	sdk.RegisterCodec(cdc)
 
@@ -138,43 +137,52 @@ func TestReadStdTxFromFile(t *testing.T) {
 }
 
 func TestBatchScanner_Scan(t *testing.T) {
+	t.Parallel()
 	cdc := codec.New()
 	sdk.RegisterCodec(cdc)
 
-	// Build a test transaction
-	fee := authtypes.NewStdFee(50000, sdk.Coins{sdk.NewInt64Coin("atom", 150)})
-	stdTx := authtypes.NewStdTx([]sdk.Msg{}, fee, []authtypes.StdSignature{}, "foomemo")
+	batch1 := `{"msg":[],"fee":{"amount":[{"denom":"atom","amount":"150"}],"gas":"50000"},"signatures":[],"memo":"foomemo"}
+{"msg":[],"fee":{"amount":[{"denom":"atom","amount":"150"}],"gas":"10000"},"signatures":[],"memo":"foomemo"}
+{"msg":[],"fee":{"amount":[{"denom":"atom","amount":"1"}],"gas":"10000"},"signatures":[],"memo":"foomemo"}
+`
+	batch2 := `{"msg":[],"fee":{"amount":[{"denom":"atom","amount":"150"}],"gas":"50000"},"signatures":[],"memo":"foomemo"}
+malformed
+{"msg":[],"fee":{"amount":[{"denom":"atom","amount":"1"}],"gas":"10000"},"signatures":[],"memo":"foomemo"}
+`
+	batch3 := `{"msg":[],"fee":{"amount":[{"denom":"atom","amount":"150"}],"gas":"50000"},"signatures":[],"memo":"foomemo"}
+{"msg":[],"fee":{"amount":[{"denom":"atom","amount":"1"}],"gas":"10000"},"signatures":[],"memo":"foomemo"}`
+	batch4 := `{"msg":[],"fee":{"amount":[{"denom":"atom","amount":"150"}],"gas":"50000"},"signatures":[],"memo":"foomemo"}
 
-	// Write it twice to the scanner
-
-	buffer := strings.Builder{}
-	encodedTx, err := cdc.MarshalJSON(stdTx)
-	require.NoError(t, err)
-	buffer.WriteString(fmt.Sprintf("%s\n", encodedTx))
-	buffer.WriteString(fmt.Sprintf("%s\n", encodedTx))
-
-	// Write malformed line
-	buffer.WriteString("malformed\n")
-
-	// write another stdtx
-	buffer.WriteString(fmt.Sprintf("%s\n", encodedTx))
-
-	i := 0
-	scanner := NewBatchScanner(cdc, strings.NewReader(buffer.String()))
-
-	for scanner.Scan() {
-		stdTx := scanner.StdTx()
-		require.Equal(t, "atom", stdTx.Fee.Amount[0].Denom)
-		require.Equal(t, int64(150), stdTx.Fee.Amount[0].Amount.Int64())
-		i++
+{"msg":[],"fee":{"amount":[{"denom":"atom","amount":"1"}],"gas":"10000"},"signatures":[],"memo":"foomemo"}
+`
+	tests := []struct {
+		name               string
+		batch              string
+		wantScannerError   bool
+		wantUnmarshalError bool
+		numTxs             int
+	}{
+		{"good batch", batch1, false, false, 3},
+		{"malformed", batch2, false, true, 1},
+		{"missing trailing newline", batch3, false, false, 2},
+		{"empty line", batch4, false, true, 1},
 	}
 
-	// no error return from bufio.Scanner
-	require.NoError(t, scanner.Err())
-	// unmarshalling error was returned
-	require.EqualError(t, scanner.UnmarshalErr(), "invalid character 'm' looking for beginning of value")
-	// once an error occurs, the remaining transactions are ignored
-	require.Equal(t, 2, i)
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			scanner, i := NewBatchScanner(cdc, strings.NewReader(tt.batch)), 0
+			for scanner.Scan() {
+				_ = scanner.StdTx()
+				i++
+			}
+
+			require.Equal(t, tt.wantScannerError, scanner.Err() != nil)
+			require.Equal(t, tt.wantUnmarshalError, scanner.UnmarshalErr() != nil)
+			require.Equal(t, tt.numTxs, i)
+		})
+	}
 }
 
 func compareEncoders(t *testing.T, expected sdk.TxEncoder, actual sdk.TxEncoder) {
