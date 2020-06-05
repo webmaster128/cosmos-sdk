@@ -266,7 +266,7 @@ type BatchScanner struct {
 }
 
 // StdTx returns the most recent StdTx unmarshalled by a call to Scan.
-func (bs *BatchScanner) StdTx() authtypes.StdTx { return bs.stdTx }
+func (bs BatchScanner) StdTx() authtypes.StdTx { return bs.stdTx }
 
 // UnmarshalErr returns the first unmarshalling error that was encountered by the scanner.
 func (bs BatchScanner) UnmarshalErr() error { return bs.unmarshalErr }
