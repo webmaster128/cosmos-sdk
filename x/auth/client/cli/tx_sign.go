@@ -36,19 +36,18 @@ are generated, the command updates the sequence number accordingly.
 If the flag --signature-only flag is set, it will output a JSON representation
 of the generated signature only.
 
-The command operates in offline mode (the authclient will not reach out to full node)
-and requires the user to manually set account number and a starting sequence through
-the '--account-number' and '--sequence' flags respectively.
+The --offline flag makes sure that the authclient will not reach out to full node.
+As a result, the account and the sequence number queries will not be performed and
+it is required to set such parameters manually. Note, invalid values will cause
+the transaction to fail. The sequence will be incremented automatically for each
+transaction that is signed.
 
 The --multisig=<multisig_key> flag generates a signature on behalf of a multisig
 account key. It implies --signature-only.
 `,
-		PreRun: func(cmd *cobra.Command, _ []string) {
-			cmd.MarkFlagRequired(flags.FlagAccountNumber)
-			cmd.MarkFlagRequired(flags.FlagSequence)
-		},
-		RunE: makeSignBatchCmd(codec),
-		Args: cobra.ExactArgs(1),
+		PreRun: preSignCmd,
+		RunE:   makeSignBatchCmd(codec),
+		Args:   cobra.ExactArgs(1),
 	}
 
 	cmd.Flags().String(
@@ -65,23 +64,21 @@ account key. It implies --signature-only.
 
 func makeSignBatchCmd(cdc *codec.Codec) func(cmd *cobra.Command, args []string) error {
 	return func(cmd *cobra.Command, args []string) error {
-		viper.Set(flags.FlagOffline, true)
-
 		inBuf := bufio.NewReader(cmd.InOrStdin())
 		clientCtx := client.NewContextWithInput(inBuf).WithCodec(cdc)
 		txBldr := types.NewTxBuilderFromCLI(inBuf)
 		generateSignatureOnly := viper.GetBool(flagSigOnly)
 		multisigAddrStr := viper.GetString(flagMultisig)
-		sequence := txBldr.Sequence()
 
-		if err := setOutputFile(cmd); err != nil {
+		closeFunc, err := setOutputFile(cmd)
+		if err != nil {
 			return err
 		}
 
-		var (
-			infile = os.Stdin
-			err    error
-		)
+		defer closeFunc()
+		clientCtx.WithOutput(cmd.OutOrStdout())
+
+		var infile = os.Stdin
 
 		if args[0] != "-" {
 			infile, err = os.Open(args[0])
@@ -90,17 +87,12 @@ func makeSignBatchCmd(cdc *codec.Codec) func(cmd *cobra.Command, args []string) 
 			}
 		}
 
-		clientCtx.WithOutput(cmd.OutOrStdout())
-
 		scanner := authclient.NewBatchScanner(cdc, infile)
-		for scanner.Scan() {
+
+		for sequence := txBldr.Sequence(); scanner.Scan(); sequence++ {
 			var stdTx types.StdTx
 
 			unsignedStdTx := scanner.StdTx()
-			if err := scanner.UnmarshalErr(); err != nil {
-				cmd.PrintErr(err)
-			}
-
 			txBldr = txBldr.WithSequence(sequence)
 
 			if multisigAddrStr == "" {
@@ -138,21 +130,21 @@ func makeSignBatchCmd(cdc *codec.Codec) func(cmd *cobra.Command, args []string) 
 	}
 }
 
-func setOutputFile(cmd *cobra.Command) error {
+func setOutputFile(cmd *cobra.Command) (func(), error) {
 	outputDoc := viper.GetString(flags.FlagOutputDocument)
 	if outputDoc == "" {
 		cmd.SetOut(cmd.OutOrStdout())
-		return nil
+		return func() {}, nil
 	}
 
 	fp, err := os.OpenFile(outputDoc, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
-		return err
+		return func() {}, err
 	}
 
 	cmd.SetOut(fp)
 
-	return nil
+	return func() { fp.Close() }, nil
 }
 
 // GetSignCommand returns the transaction sign command.
