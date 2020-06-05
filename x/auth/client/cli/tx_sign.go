@@ -30,8 +30,8 @@ func GetSignBatchCommand(codec *codec.Codec) *cobra.Command {
 		Short: "Sign transaction batch files",
 		Long: `Sign batch files of transactions generated with --generate-only.
 The command processes list of transactions from file (one StdTx each line) and
-print the respective signatures to STDOUT, delimited by '\n'. As the signatures
-are generated, the command updates the sequence number accordingly.
+print their JSON encoding, delimited by '\n'. As the signatures are generated,
+the command updates the sequence number accordingly.
 
 If the flag --signature-only flag is set, it will output a JSON representation
 of the generated signature only.
