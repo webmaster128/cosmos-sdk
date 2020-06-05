@@ -68,8 +68,22 @@ func makeSignBatchCmd(cdc *codec.Codec) func(cmd *cobra.Command, args []string) 
 		clientCtx := client.NewContextWithInput(inBuf).WithCodec(cdc)
 		txBldr := types.NewTxBuilderFromCLI(inBuf)
 		generateSignatureOnly := viper.GetBool(flagSigOnly)
-		multisigAddrStr := viper.GetString(flagMultisig)
 
+		var (
+			err          error
+			multisigAddr sdk.AccAddress
+			infile       = os.Stdin
+		)
+
+		// validate multisig address if there's any
+		if viper.GetString(flagMultisig) != "" {
+			multisigAddr, err = sdk.AccAddressFromBech32(viper.GetString(flagMultisig))
+			if err != nil {
+				return err
+			}
+		}
+
+		// prepare output document
 		closeFunc, err := setOutputFile(cmd)
 		if err != nil {
 			return err
@@ -77,8 +91,6 @@ func makeSignBatchCmd(cdc *codec.Codec) func(cmd *cobra.Command, args []string) 
 
 		defer closeFunc()
 		clientCtx.WithOutput(cmd.OutOrStdout())
-
-		var infile = os.Stdin
 
 		if args[0] != "-" {
 			infile, err = os.Open(args[0])
@@ -95,16 +107,9 @@ func makeSignBatchCmd(cdc *codec.Codec) func(cmd *cobra.Command, args []string) 
 			unsignedStdTx := scanner.StdTx()
 			txBldr = txBldr.WithSequence(sequence)
 
-			if multisigAddrStr == "" {
+			if multisigAddr.Empty() {
 				stdTx, err = authclient.SignStdTx(txBldr, clientCtx, viper.GetString(flags.FlagFrom), unsignedStdTx, false, true)
 			} else {
-				var multisigAddr sdk.AccAddress
-
-				multisigAddr, err = sdk.AccAddressFromBech32(multisigAddrStr)
-				if err != nil {
-					return err
-				}
-
 				stdTx, err = authclient.SignStdTxWithSignerAddress(txBldr, clientCtx, multisigAddr, clientCtx.GetFromName(), unsignedStdTx, true)
 			}
 
@@ -118,8 +123,6 @@ func makeSignBatchCmd(cdc *codec.Codec) func(cmd *cobra.Command, args []string) 
 			}
 
 			cmd.Printf("%s\n", json)
-
-			sequence++
 		}
 
 		if err := scanner.UnmarshalErr(); err != nil {
