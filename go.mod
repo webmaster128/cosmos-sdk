@@ -6,7 +6,7 @@ require (
 	github.com/99designs/keyring v1.1.5
 	github.com/armon/go-metrics v0.3.4
 	github.com/bgentry/speakeasy v0.1.0
-	github.com/btcsuite/btcd v0.20.1-beta
+	github.com/btcsuite/btcd v0.21.0-beta
 	github.com/confio/ics23-iavl v0.6.0
 	github.com/confio/ics23/go v0.0.0-20200804135649-a9fbc744ca3d
 	github.com/cosmos/go-bip39 v0.0.0-20180819234021-555e2067c45d
